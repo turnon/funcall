@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>erd</title>
+  <link rel="stylesheet" type="text/css" href="http://unpkg.com/view-design/dist/styles/iview.css">
+  <style>
+    html,
+    body,
+    #app {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    #switch {
+      position: fixed;
+      bottom: 4%;
+      right: 2%;
+    }
+
+    button.filter-switch {
+      position: fixed;
+      top: 3%;
+      left: 2%;
+    }
+
+    a.ivu-drawer-close {
+      margin-top: 7px;
+      right: 20px;
+    }
+
+    .ivu-drawer-body {
+      overflow-y: scroll;
+    }
+
+    .highlight {
+      background-color: yellow;
+    }
+  </style>
+  <script type="text/javascript" src="http://vuejs.org/js/vue.min.js"></script>
+  <script type="text/javascript" src="http://unpkg.com/view-design/dist/iview.min.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/echarts@4.1.0/dist/echarts.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue-echarts@4.0.2"></script>
+</head>
+
+<body>
+  <div id="app">
+    <Drawer placement="left" v-model="filter" :mask-closable="false" :mask="false" :draggable="true" :transfer="false">
+      <i-input v-model="keyword" style="width: calc(100% - 27px); margin-bottom: 10px;"></i-input>
+      <Tree :data="relations" show-checkbox @on-check-change="selectRelation($event)" ref="filter-panel" />
+    </Drawer>
+
+    <v-chart :options="opts" theme="light" autoresize @click="handleClick($event)"></v-chart>
+
+    <i-button @click="filter = !filter" type="info" class="filter-switch">
+      filter
+      <Icon type="ios-arrow-forward" />
+    </i-button>
+
+    <div id="switch">
+      label&nbsp;<Checkbox v-model="opts.series[0].label.show"></Checkbox>
+    </div>
+  </div>
+
+  <script>
+    // (function () {
+
+    let graph =
+      //start-sub
+      {
+        "nodes": [{
+          "name": "n1",
+          "category": 0
+        }, {
+          "name": "n2",
+          "category": 1
+        }, {
+          "name": "n3",
+          "category": 2
+        }, {
+          "name": "n4",
+          "category": 2
+        }],
+        "links": [{
+          "source": "n1",
+          "target": "n2"
+        }, {
+          "source": "n2",
+          "target": "n3"
+        }, {
+          "source": "n3",
+          "target": "n1"
+        }, {
+          "source": "n3",
+          "target": "n4"
+        }],
+        "categories": [{
+          "name": "/A"
+        }, {
+          "name": "/B"
+        }, {
+          "name": "/C"
+        }]
+      }
+      //end-sub
+
+    let source_checkboxes = {},
+      target_checkboxes = [],
+      child_renderer = (h, { data }) => {
+        return h('span', `${data.macro} ${data.title}`);
+      },
+      add_to_checkboxs_tree = (link, i) => {
+        if (!source_checkboxes[link.source]) {
+          source_checkboxes[link.source] = {
+            title: link.source,
+            expand: true,
+            checked: false,
+            indeterminate: false,
+            children: []
+          }
+        }
+
+        let child_checkbox = {
+          link_idx: i,
+          title: link.target,
+          macro: link.macro,
+          render: child_renderer,
+          checked: false
+        }
+        target_checkboxes[i] = child_checkbox
+        source_checkboxes[link.source].children.push(child_checkbox)
+      }
+
+    graph.links.forEach((link, i) => {
+      link.idx = i
+      link.lineStyle = {
+        opacity: 0.5,
+        width: 1
+      }
+      add_to_checkboxs_tree(link, i)
+    })
+
+    let node_tooltip = {
+      formatter({ data }) {
+        return data.schema.join("<br>")
+        // let schema = data.schema.join("<br>")
+        // let idx = data.indexes.map((idx) => {
+        //   let cols = `[${idx.cols.join(', ')}]`
+        //   return idx.uniq ? `${cols}:uniq` : cols
+        // }).join("<br>")
+        // return `${schema}<br>${idx}`
+      }
+    }
+    graph.nodes.forEach((node, i) => {
+      node.tooltip = node_tooltip
+      node.itemStyle = {
+        opacity: 1
+      }
+    })
+
+    let relations = Object.values(source_checkboxes)
+    // console.log(relations)
+
+
+    let opts = {
+      // title: {
+      //   text: 'Les Miserables',
+      //   subtext: 'Default layout',
+      //   top: 'bottom',
+      //   left: 'right'
+      // },
+      tooltip: {},
+      legend: [{
+        // selectedMode: 'single',
+        top: "3%",
+        right: "2%",
+        orient: "vertical",
+        align: "right",
+        data: graph.categories.map(function (a) {
+          return a.name;
+        })
+      }],
+      animationDuration: 1500,
+      animationEasingUpdate: 'quinticInOut',
+      series: [{
+        name: 'Les Miserables',
+        type: 'graph',
+        layout: 'force',
+        data: graph.nodes,
+        links: graph.links,
+        categories: graph.categories,
+        roam: true,
+        // focusNodeAdjacency: true,
+        itemStyle: {
+          borderColor: '#fff',
+          borderWidth: 1,
+          shadowBlur: 10,
+          shadowColor: 'rgba(0, 0, 0, 0.3)'
+        },
+        label: {
+          show: false,
+          position: 'right',
+          formatter: '{b}'
+        },
+        lineStyle: {
+          color: 'source',
+          // curveness: 0.3
+        },
+        edgeSymbolSize: 15,
+        emphasis: {
+          lineStyle: {
+            width: 10
+          }
+        }
+      }]
+    }
+
+    Vue.component('v-chart', VueECharts)
+    new Vue({
+      el: '#app',
+      data: {
+        keyword: "",
+        filter: false,
+        opts: opts,
+        relations: relations
+      },
+      watch: {
+        keyword() {
+          tree.search(this.keyword)
+        }
+      },
+      methods: {
+        selectRelation(checkeds) {
+          let checked_links = new Set(),
+            checked_nodes = new Set()
+
+          checkeds.forEach((c) => {
+            if (c.link_idx) {
+              checked_links.add(c.link_idx)
+              checked_nodes.add(graph.links[c.link_idx].source)
+            }
+            checked_nodes.add(c.title)
+          })
+
+          if (checked_nodes.size === 0) {
+            graph.links.forEach((link) => {
+              link.lineStyle.width = 1
+              link.lineStyle.opacity = 1
+            })
+            graph.nodes.forEach((node) => {
+              node.itemStyle.opacity = 1
+            })
+            return
+          }
+
+          graph.links.forEach((link, i) => {
+            if (checked_links.has(i)) {
+              link.lineStyle.width = 10
+              link.lineStyle.opacity = 1
+            } else {
+              link.lineStyle.width = 1
+              link.lineStyle.opacity = 0.1
+            }
+          })
+
+          graph.nodes.forEach((node, i) => {
+            if (checked_nodes.has(node.name)) {
+              node.itemStyle.opacity = 1
+            } else {
+              node.itemStyle.opacity = 0.1
+            }
+          })
+        },
+        handleClick(e) {
+          let link = e.data,
+            target_box = target_checkboxes[link.idx],
+            source_box = source_checkboxes[link.source]
+
+          target_box.checked = !target_box.checked
+
+          let checked_targets_count = source_box.children.reduce((count, c) => {
+            count = c.checked ? count + 1 : count
+            return count
+          }, 0)
+
+          if (checked_targets_count === 0) {
+            source_box.checked = false
+            source_box.indeterminate = false
+          } else if (checked_targets_count === source_box.children.length) {
+            source_box.checked = true
+            source_box.indeterminate = false
+          } else {
+            source_box.checked = false
+            source_box.indeterminate = true
+          }
+
+          this.$nextTick(() => {
+            let checkeds = this.$refs['filter-panel'].getCheckedAndIndeterminateNodes()
+            this.selectRelation(checkeds)
+          })
+        }
+      }
+    });
+
+    const Tree = (function () {
+      const node_class_name = "ivu-tree-children",
+        node_class = "." + node_class_name,
+        text_class = ".ivu-tree-title",
+        highlight_html = '<span class="highlight">$1</span>'
+
+      class Tree {
+        constructor(selector) {
+          let n = document.querySelector(selector + " " + node_class)
+          this.roots = n ? (new Node(n).this_and_siblings()) : []
+        }
+
+        search(keyword) {
+          let kw = keyword === "" ? /./ : new RegExp(keyword)
+          this.show_only_when_match((txt) => { return txt.match(kw) })
+
+          if (keyword !== "") {
+            let repl = new RegExp('(' + keyword + ')')
+            this.highlight((txt) => { return txt.replace(repl, highlight_html) })
+          } else {
+            document.querySelectorAll('.highlight').forEach((n) => { n.parentNode.innerText = n.parentNode.innerText })
+          }
+        }
+
+        show_only_when_match(fn) {
+          this.roots.forEach((n) => { n.show_only_when_match(fn) })
+        }
+
+        highlight(fn) {
+          this.roots.forEach((n) => { n.highlight(fn) })
+        }
+      }
+
+      class Node {
+        constructor(node) {
+          this.raw_node = node
+          this.visible = true
+
+          let child = this.raw_node.querySelector(node_class)
+          this.children = child ? (new Node(child).this_and_siblings()) : []
+        }
+
+        this_and_siblings() {
+          let ss = [this],
+            s = this.raw_node.nextSibling
+
+          while (s && s.getAttribute && (s.getAttribute('class') === node_class_name)) {
+            ss.push(new Node(s))
+            s = s.nextSibling
+          }
+          return ss
+        }
+
+        highlight(fn) {
+          if (!this.visible) {
+            return
+          }
+          this.title_node().innerHTML = fn(this.title_node().innerText)
+          this.children.forEach((c) => { c.highlight(fn) })
+        }
+
+        title_node() {
+          return this.raw_node.querySelector(text_class)
+        }
+
+        show_only_when_match(fn) {
+          let text = this.title_node().innerText
+          if (fn(text)) {
+            this.set_sub_tree_visible()
+            return
+          }
+          this.children.forEach((c) => {
+            c.show_only_when_match(fn)
+          })
+          if (this.children.some((c) => { return c.visible })) {
+            this.set_display(true)
+            return
+          }
+          this.set_display(false)
+        }
+
+        set_display(vi) {
+          this.visible = vi
+          this.raw_node.style.display = (vi ? "block" : "none")
+
+        }
+
+        set_sub_tree_visible() {
+          this.set_display(true)
+          this.children.forEach((c) => {
+            c.set_sub_tree_visible()
+          })
+        }
+      }
+
+      return Tree
+    })()
+
+    let tree = new Tree('#app')
+
+    setTimeout(() => {
+      let chart = document.querySelector(".echarts")
+      chart.style.width = "100%"
+      chart.style.height = "100%"
+    })
+    // })()
+  </script>
+</body>
+
+</html>

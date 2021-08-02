@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"golang.org/x/tools/go/packages"
 	"golang.org/x/tools/go/pointer"
@@ -44,11 +46,32 @@ func main() {
 		panic(err) // internal error in pointer analysis
 	}
 
-	fmt.Println(len(result.CallGraph.Nodes))
+	// fmt.Println(len(result.CallGraph.Nodes))
 
-	for fn, _ := range result.CallGraph.Nodes {
-		fmt.Println(fn)
+	gd := NewGraphData()
+
+	for _, nodes := range result.CallGraph.Nodes {
+		for _, edge := range nodes.Out {
+			if strings.Index(edge.String(), "bookmark") <= 0 {
+				break
+			}
+			gd.addLink(edge)
+			// fmt.Println(
+			// 	edge.Caller.Func,
+			// 	"-->",
+			// 	edge.Callee.Func,
+			// 	"==",
+			// 	edge.String(),
+			// )
+		}
 	}
+
+	fmt.Println(gd.Nodes)
+	fmt.Println("---------------")
+	fmt.Println(gd.Categories)
+	fmt.Println("---------------")
+	bytes, _ := json.Marshal(gd)
+	fmt.Println(string(bytes))
 }
 
 func mainPackages(pkgs []*ssa.Package) ([]*ssa.Package, error) {
