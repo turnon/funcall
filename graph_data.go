@@ -47,8 +47,7 @@ func (gd *graphData) addLink(edge *callgraph.Edge) {
 }
 
 func (gd *graphData) addNodeAndCategory(callerFunc string) {
-	_, funcExists := gd.funcSet[callerFunc]
-	if funcExists {
+	if _, funcExists := gd.funcSet[callerFunc]; funcExists {
 		return
 	}
 
@@ -63,8 +62,7 @@ func (gd *graphData) addNodeAndCategory(callerFunc string) {
 		gd.Categories = append(gd.Categories, category{pkgName})
 	}
 
-	n := node{callerFunc, pkgId}
-	gd.Nodes = append(gd.Nodes, n)
+	gd.Nodes = append(gd.Nodes, node{callerFunc, pkgId})
 }
 
 func withoutFunc(funcStr string) string {
