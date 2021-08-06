@@ -49,13 +49,22 @@ func NewGraphData(result *pointer.Result) *graphData {
 	return gd
 }
 
-func (gd *graphData) Process() {
+func (gd *graphData) Process(packageNames []string) {
+	edgeConcernedPkg := func(edge *callgraph.Edge) bool {
+		edgeStr := edge.String()
+		for _, packageName := range packageNames {
+			if strings.Contains(edgeStr, packageName) {
+				return true
+			}
+		}
+		return false
+	}
+
 	for _, nodes := range gd.pointerResult.CallGraph.Nodes {
 		for _, edge := range nodes.Out {
-			if strings.Index(edge.String(), "bookmark") <= 0 {
-				break
+			if edgeConcernedPkg(edge) {
+				gd.addLink(edge)
 			}
-			gd.addLink(edge)
 		}
 	}
 }
