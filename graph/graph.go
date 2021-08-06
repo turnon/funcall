@@ -39,6 +39,7 @@ type graphData struct {
 	pointerResult *pointer.Result
 	funcSet       map[string]struct{}
 	packageSet    map[string]int
+	callSet       map[link]struct{}
 }
 
 func NewGraphData(result *pointer.Result) *graphData {
@@ -46,6 +47,7 @@ func NewGraphData(result *pointer.Result) *graphData {
 	gd.pointerResult = result
 	gd.funcSet = make(map[string]struct{})
 	gd.packageSet = make(map[string]int)
+	gd.callSet = make(map[link]struct{})
 	return gd
 }
 
@@ -82,7 +84,11 @@ func (gd *graphData) addLink(edge *callgraph.Edge) {
 	calleeFunc := edge.Callee.Func.String()
 	gd.addNodeAndCategory(calleeFunc)
 
-	gd.Links = append(gd.Links, link{callerFunc, calleeFunc})
+	link := link{callerFunc, calleeFunc}
+	if _, linkExists := gd.callSet[link]; !linkExists {
+		gd.callSet[link] = struct{}{}
+		gd.Links = append(gd.Links, link)
+	}
 }
 
 func (gd *graphData) addNodeAndCategory(callerFunc string) {
