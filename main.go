@@ -1,13 +1,21 @@
 package main
 
 import (
+	_ "embed"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"regexp"
+	"strings"
 
 	"golang.org/x/tools/go/packages"
 	"golang.org/x/tools/go/pointer"
 	"golang.org/x/tools/go/ssa"
 	"golang.org/x/tools/go/ssa/ssautil"
 )
+
+//go:embed verd.html
+var tmpl string
 
 func main() {
 	cfg := &packages.Config{
@@ -44,11 +52,22 @@ func main() {
 		panic(err) // internal error in pointer analysis
 	}
 
-	fmt.Println(len(result.CallGraph.Nodes))
+	gd := NewGraphData()
 
-	for fn, _ := range result.CallGraph.Nodes {
-		fmt.Println(fn)
+	for _, nodes := range result.CallGraph.Nodes {
+		for _, edge := range nodes.Out {
+			if strings.Index(edge.String(), "bookmark") <= 0 {
+				break
+			}
+			gd.addLink(edge)
+		}
 	}
+
+	bytes, _ := json.Marshal(gd)
+
+	toReplace := regexp.MustCompile(`(?s)//start-sub.*//end-sub`)
+	finalHtml := toReplace.ReplaceAllLiteralString(tmpl, string(bytes))
+	ioutil.WriteFile("./finalHtml.html", []byte(finalHtml), 0644)
 }
 
 func mainPackages(pkgs []*ssa.Package) ([]*ssa.Package, error) {
