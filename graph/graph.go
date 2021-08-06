@@ -1,10 +1,21 @@
-package main
+package graph
 
 import (
+	_ "embed"
+
+	"encoding/json"
+	"io/ioutil"
+	"regexp"
 	"strings"
 
 	"golang.org/x/tools/go/callgraph"
+	"golang.org/x/tools/go/pointer"
 )
+
+//go:embed verd.html
+var tmpl string
+
+var toReplace = regexp.MustCompile(`(?s)//start-sub.*//end-sub`)
 
 type node struct {
 	Name     string `json:"name"`
@@ -25,15 +36,34 @@ type graphData struct {
 	Links      []link     `json:"links"`
 	Categories []category `json:"categories"`
 
-	funcSet    map[string]struct{}
-	packageSet map[string]int
+	pointerResult *pointer.Result
+	funcSet       map[string]struct{}
+	packageSet    map[string]int
 }
 
-func NewGraphData() *graphData {
+func NewGraphData(result *pointer.Result) *graphData {
 	gd := new(graphData)
+	gd.pointerResult = result
 	gd.funcSet = make(map[string]struct{})
 	gd.packageSet = make(map[string]int)
 	return gd
+}
+
+func (gd *graphData) Process() {
+	for _, nodes := range gd.pointerResult.CallGraph.Nodes {
+		for _, edge := range nodes.Out {
+			if strings.Index(edge.String(), "bookmark") <= 0 {
+				break
+			}
+			gd.addLink(edge)
+		}
+	}
+}
+
+func (gd *graphData) WriteFile(targetFilePath string) {
+	bytes, _ := json.Marshal(gd)
+	finalHtml := toReplace.ReplaceAllLiteralString(tmpl, string(bytes))
+	ioutil.WriteFile(targetFilePath, []byte(finalHtml), 0644)
 }
 
 func (gd *graphData) addLink(edge *callgraph.Edge) {
