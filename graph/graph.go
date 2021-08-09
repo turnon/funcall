@@ -2,6 +2,7 @@ package graph
 
 import (
 	_ "embed"
+	"sort"
 
 	"encoding/json"
 	"io/ioutil"
@@ -38,7 +39,7 @@ type graphData struct {
 
 	pointerResult *pointer.Result
 	funcSet       map[string]struct{}
-	packageSet    map[string]int
+	packageSet    map[string][]string
 	callSet       map[link]struct{}
 }
 
@@ -46,7 +47,7 @@ func NewGraphData(result *pointer.Result) *graphData {
 	gd := new(graphData)
 	gd.pointerResult = result
 	gd.funcSet = make(map[string]struct{})
-	gd.packageSet = make(map[string]int)
+	gd.packageSet = make(map[string][]string)
 	gd.callSet = make(map[link]struct{})
 	return gd
 }
@@ -69,6 +70,8 @@ func (gd *graphData) Process(packageNames []string) {
 			}
 		}
 	}
+
+	gd.addNodesAndCategories()
 }
 
 func (gd *graphData) WriteFile(targetFilePath string) {
@@ -79,10 +82,10 @@ func (gd *graphData) WriteFile(targetFilePath string) {
 
 func (gd *graphData) addLink(edge *callgraph.Edge) {
 	callerFunc := edge.Caller.Func.String()
-	gd.addNodeAndCategory(callerFunc)
+	gd.keepFunc(callerFunc)
 
 	calleeFunc := edge.Callee.Func.String()
-	gd.addNodeAndCategory(calleeFunc)
+	gd.keepFunc(calleeFunc)
 
 	link := link{callerFunc, calleeFunc}
 	if _, linkExists := gd.callSet[link]; !linkExists {
@@ -91,7 +94,7 @@ func (gd *graphData) addLink(edge *callgraph.Edge) {
 	}
 }
 
-func (gd *graphData) addNodeAndCategory(callerFunc string) {
+func (gd *graphData) keepFunc(callerFunc string) {
 	if _, funcExists := gd.funcSet[callerFunc]; funcExists {
 		return
 	}
@@ -99,15 +102,28 @@ func (gd *graphData) addNodeAndCategory(callerFunc string) {
 	gd.funcSet[callerFunc] = struct{}{}
 
 	pkgName := packageName(callerFunc)
-	pkgId, pkgExists := gd.packageSet[pkgName]
-
+	funcs, pkgExists := gd.packageSet[pkgName]
 	if !pkgExists {
-		pkgId = len(gd.packageSet)
-		gd.packageSet[pkgName] = pkgId
-		gd.Categories = append(gd.Categories, category{pkgName})
+		funcs = []string{}
 	}
 
-	gd.Nodes = append(gd.Nodes, node{callerFunc, pkgId})
+	funcs = append(funcs, callerFunc)
+	gd.packageSet[pkgName] = funcs
+}
+
+func (gd *graphData) addNodesAndCategories() {
+	pkgNames := make([]string, 0, len(gd.packageSet))
+	for pkgName := range gd.packageSet {
+		pkgNames = append(pkgNames, pkgName)
+	}
+	sort.Strings(pkgNames)
+
+	for pkgIdx, pkgName := range pkgNames {
+		gd.Categories = append(gd.Categories, category{pkgName})
+		for _, callerFunc := range gd.packageSet[pkgName] {
+			gd.Nodes = append(gd.Nodes, node{callerFunc, pkgIdx})
+		}
+	}
 }
 
 func withoutFunc(funcStr string) string {
